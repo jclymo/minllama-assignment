@@ -202,6 +202,7 @@ def generate_sentence(args, prefix, outfile, max_new_tokens = 75, temperature = 
 		ctx = torch.amp.autocast(device_type="cuda", dtype=torch.float32) if args.use_gpu else nullcontext()
 		llama = load_pretrained(args.pretrained_model_path)
 		llama = llama.to(device)
+		llama.eval() # set to evaluation mode
 		print(f"load model from {args.pretrained_model_path}")
 		enc = Tokenizer(args.max_sentence_len)
 

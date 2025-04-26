@@ -277,18 +277,17 @@ class Llama(LlamaPreTrainedModel):
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         Also note this is a super inefficient version of sampling with no key/value cache.
         """
+        # NB set model to eval mode in run_llama.py instead of here
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at block_size
             idx_cond = idx if idx.size(1) <= self.params.max_seq_len else idx[:, -self.params.max_seq_len:]
             # forward the model to get the logits for the index in the sequence
             logits, _ = self(idx_cond)
-            logits = logits[:, -1, :] # crop to just the final time step
-            # todo
-            raise NotImplementedError
+            logits = logits[:, -1, :] # crop to just the final time step (b, vocab_size)
 
             if temperature == 0.0:
                 # select the single most likely index
-                idx_next = None
+                idx_next = torch.argmax(logits, dim=-1, keepdim=True) # (b, 1)
             else:
                 '''
                 Perform temperature sampling:
@@ -299,7 +298,10 @@ class Llama(LlamaPreTrainedModel):
 
                 Note that we are not using top-k sampling/nucleus sampling in this procedure.
                 '''
-                idx_next = None
+                logits = logits / temperature
+                probs = F.softmax(logits, dim=-1) # (b, vocab_size)
+                idx_next = torch.multinomial(probs, num_samples=1) # (b, 1)
+
             # append sampled index to the running sequence and continue
             idx = torch.cat((idx, idx_next), dim=1)
 
