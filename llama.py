@@ -38,13 +38,13 @@ class RMSNorm(torch.nn.Module):
         the square root in Equation 4) before normalizing the tensor.
 
         Args:
-            x (torch.Tensor): The input tensor.
+            x (torch.Tensor): The input tensor. shape (bs, seqlen, dim)
 
         Returns:
             torch.Tensor: The normalized tensor.
         """
-        # todo
-        raise NotImplementedError
+        rms = torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + self.eps)
+        return x * rms
 
     def forward(self, x):
         """
