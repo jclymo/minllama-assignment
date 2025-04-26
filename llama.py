@@ -71,10 +71,10 @@ class Attention(nn.Module):
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
         self.head_dim = config.dim // config.n_heads
         self.max_seq_len = config.max_seq_len
-        self.compute_query = nn.Linear(config.dim, config.n_heads * self.head_dim, bias=False)
+        self.compute_query = nn.Linear(config.dim, self.n_local_heads * self.head_dim, bias=False)
         self.compute_key = nn.Linear(config.dim, self.n_kv_heads * self.head_dim, bias=False)
         self.compute_value = nn.Linear(config.dim, self.n_kv_heads * self.head_dim, bias=False)
-        self.compute_output = nn.Linear(config.n_heads * self.head_dim, config.dim, bias=False)
+        self.compute_output = nn.Linear(self.n_local_heads * self.head_dim, config.dim, bias=False)
         self.attn_dropout = nn.Dropout(config.dropout)
         self.resid_dropout = nn.Dropout(config.dropout)
         self.dropout = config.dropout
@@ -93,8 +93,16 @@ class Attention(nn.Module):
         Make sure to use attention_dropout (self.attn_dropout) on the computed
         attention matrix before applying it to the value tensor.
         '''
-        # todo
-        raise NotImplementedError
+
+        # calculate attention matrix
+        attn = torch.softmax(torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.head_dim), dim=-1)
+
+        # apply dropout
+        attn = self.attn_dropout(attn)
+
+        # apply attention to value
+        output = torch.matmul(attn, value)
+        return output
 
     def forward(
         self,
@@ -111,8 +119,8 @@ class Attention(nn.Module):
         '''
         batch_size, seqlen, _ = x.shape
 
-        query = self.compute_query(x)
-        key = self.compute_key(x)
+        query = self.compute_query(x) # (bs, seqlen, n_local_heads * head_dim)
+        key = self.compute_key(x) # (bs, seqlen, n_kv_heads * head_dim)
         value = self.compute_value(x)
         query = query.view(batch_size, seqlen, self.n_local_heads, self.head_dim)
         key = key.view(batch_size, seqlen, self.n_local_kv_heads, self.head_dim)
@@ -129,15 +137,15 @@ class Attention(nn.Module):
 
         # make heads into a batch dimension
         query = query.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
-        key = key.transpose(1, 2)
+        key = key.transpose(1, 2) # (bs, n_local_heads, seqlen, head_dim)
         value = value.transpose(1, 2)
-        output = self.compute_query_key_value_scores(query, key, value)
+        output = self.compute_query_key_value_scores(query, key, value) # (bs, n_local_heads, seqlen, head_dim)
 
         # restore time as batch dimension and concat heads
-        output = output.transpose(1, 2).contiguous().view(batch_size, seqlen, -1)
+        output = output.transpose(1, 2).contiguous().view(batch_size, seqlen, -1) # (bs, seqlen, n_local_heads * head_dim)
 
         # final projection into the residual stream
-        output = self.resid_dropout(self.compute_output(output))
+        output = self.resid_dropout(self.compute_output(output)) # (bs, seqlen, dim)
         return output
 
 
@@ -191,13 +199,15 @@ class LlamaLayer(nn.Module):
         1) layer normalization of the input (via Root Mean Square layer normalization)
         2) self-attention on the layer-normalized input
         3) a residual connection (i.e., add the input to the output of the self-attention)
-        3) layer normalization on the output of the self-attention
-        4) a feed-forward network on the layer-normalized output of the self-attention
-        5) add a residual connection from the unnormalized self-attention output to the
+        4) layer normalization on the output of the self-attention
+        5) a feed-forward network on the layer-normalized output of the self-attention
+        6) add a residual connection from the unnormalized self-attention output to the
            output of the feed-forward network
         '''
-        # todo
-        raise NotImplementedError
+        h = x + self.attention(self.attention_norm(x)) # 1, 2, 3
+        out = h + self.feed_forward(self.ffn_norm(h)) # 4, 5, 6
+        return out
+
 
 class Llama(LlamaPreTrainedModel):
     def __init__(self, config: LlamaConfig):
