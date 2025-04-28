@@ -97,9 +97,9 @@ class Attention(nn.Module):
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
         # apply causal mask - set scores for future tokens to -inf
-        seq_len = query.size(-2)
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=query.device), diagonal=1).bool()
-        scores.masked_fill_(causal_mask, float('-inf'))
+        # seq_len = query.size(-2)
+        # causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=query.device), diagonal=1).bool()
+        # scores.masked_fill_(causal_mask, float('-inf'))
 
         # apply softmax to get attention weights
         attn = torch.softmax(scores, dim=-1)
