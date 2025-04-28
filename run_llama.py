@@ -151,7 +151,8 @@ def train(args):
 			  'pretrained_model_path': args.pretrained_model_path,
 			  'num_labels': num_labels,
 			  'data_dir': '.',
-			  'option': args.option}
+			  'option': args.option,
+			  'pad_id': tokenizer.pad_id}
 
 	config = SimpleNamespace(**config)
 

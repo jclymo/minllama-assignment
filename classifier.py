@@ -34,6 +34,7 @@ class LlamaEmbeddingClassifier(torch.nn.Module):
 	def __init__(self, config):
 		super(LlamaEmbeddingClassifier, self).__init__()
 		self.num_labels = config.num_labels
+		self.pad_id = config.pad_id
 		self.llama = load_pretrained(config.pretrained_model_path)
 		# If we use pretrain mode, we freeze Llama parameters.
 		for param in self.llama.parameters():
@@ -56,8 +57,35 @@ class LlamaEmbeddingClassifier(torch.nn.Module):
 		'''
 		# input_ids has shape (bs, seqlen)
 		logits, hidden_states = self.llama(input_ids)
-		final_hidden_states = hidden_states[:, -1, :]
-		final_hidden_states = self.dropout(final_hidden_states)
-		logits = self.classifier_head(final_hidden_states)
+		
+		# last_tok = (input_ids != self.pad_id).sum(dim=1) - 2
+		# # final_hidden_states = hidden_states[:, -1, :]
+		# final_hidden_states = hidden_states[torch.arange(hidden_states.shape[0]), last_tok, :]
+		# final_hidden_states = self.dropout(final_hidden_states)
+		# logits = self.classifier_head(final_hidden_states)
+
+		# mask = (input_ids != self.pad_id).float()
+		# expanded_mask = mask.unsqueeze(-1).expand_as(hidden_states)
+		# masked_hidden_states = hidden_states.clone()
+		# masked_hidden_states[expanded_mask == 0] = -1e9
+		# pooled_hidden_states = torch.max(masked_hidden_states, dim=1)[0]
+		# pooled_hidden_states = self.dropout(pooled_hidden_states)
+		# logits = self.classifier_head(pooled_hidden_states)
+
+		mask = (input_ids != self.pad_id).float()
+		expanded_mask = mask.unsqueeze(-1).expand_as(hidden_states)
+		masked_hidden_states = hidden_states * expanded_mask
+		pooled_hidden_states = torch.sum(masked_hidden_states, dim=1)
+		token_counts = torch.sum(mask, dim=1, keepdim=True) + 1e-9
+		pooled_hidden_states = pooled_hidden_states / token_counts
+		pooled_hidden_states = self.dropout(pooled_hidden_states)
+		logits = self.classifier_head(pooled_hidden_states)
+
+		# mask = (input_ids != self.pad_id).float()
+		# expanded_mask = mask.unsqueeze(-1).expand_as(hidden_states)
+		# masked_hidden_states = hidden_states * expanded_mask
+		# pooled_hidden_states = torch.sum(masked_hidden_states, dim=1)
+		# logits = self.classifier_head(pooled_hidden_states)
+
 		log_probs = F.log_softmax(logits, dim=-1)
 		return log_probs
