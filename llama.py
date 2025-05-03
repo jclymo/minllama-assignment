@@ -285,7 +285,7 @@ class Llama(LlamaPreTrainedModel):
         Also note this is a super inefficient version of sampling with no key/value cache.
         """
         # this doesn't handle different sequence lengths in the batch
-        assert idx.shape[1] == 1, "Generation is implemented for one sequence at a time"
+        assert idx.shape[0] == 1, "Generation is implemented for one sequence at a time"
 
         # NB set model to eval mode in run_llama.py instead of here
         for _ in range(max_new_tokens):
