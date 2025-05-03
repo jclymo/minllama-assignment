@@ -97,9 +97,9 @@ class Attention(nn.Module):
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
         # apply causal mask - set scores for future tokens to -inf
-        # seq_len = query.size(-2)
-        # causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=query.device), diagonal=1).bool()
-        # scores.masked_fill_(causal_mask, float('-inf'))
+        seq_len = query.size(-2)
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=query.device), diagonal=1).bool()
+        scores.masked_fill_(causal_mask, float('-inf'))
 
         # apply softmax to get attention weights
         attn = torch.softmax(scores, dim=-1)
@@ -284,6 +284,9 @@ class Llama(LlamaPreTrainedModel):
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         Also note this is a super inefficient version of sampling with no key/value cache.
         """
+        # this doesn't handle different sequence lengths in the batch
+        assert idx.shape[1] == 1, "Generation is implemented for one sequence at a time"
+
         # NB set model to eval mode in run_llama.py instead of here
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at block_size
